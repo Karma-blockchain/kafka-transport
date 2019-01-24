@@ -6,7 +6,6 @@ from typing import Optional
 import msgpack
 import uuid
 import time
-from types import CoroutineType
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
 from .errors import KafkaTransportError
@@ -104,7 +103,7 @@ async def consume_messages(consumer: AIOKafkaConsumer, callback):
                 "key": decode_key(msg.key),
                 "value": value
             })
-            if type(result) is CoroutineType:
+            if asyncio.iscoroutine(result):
                 asyncio.ensure_future(result)
         except:
             logger.warning("Error during calling handler with data: %s", str(value))
