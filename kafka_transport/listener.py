@@ -101,11 +101,12 @@ class Listener:
         if self.actions:
             await self._process_action(msg)
 
-    async def fetch(self, data, timeout=600):
+    async def fetch(self, data, timeout=600, key=None):
         if not self.consumer:
             KafkaTransportError("Consumer was not started")
-            
-        key = str(uuid.uuid4())
+
+        if key is None:
+            key = str(uuid.uuid4())
         self.msg_to_wait[key] = Future()
 
         await push(self.producer_topic, data, key)
