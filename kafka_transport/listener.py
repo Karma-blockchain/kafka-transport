@@ -74,6 +74,7 @@ class Listener:
                  consumer_options=None):
         self.actions = {}
         self.actions_on_error = {}
+        self.msg_handlers = []
         self.msg_to_wait: Dict[str, Future] = {}
         self.consumer_topic = consumer_topic
         self.producer_topic = producer_topic
@@ -99,7 +100,14 @@ class Listener:
             self._process_msg_to_wait(msg)
 
         if self.actions:
-            await self._process_action(msg)
+            asyncio.ensure_future(
+                self._process_action(msg)
+            )
+
+        for handler in self.msg_handlers:
+            asyncio.ensure_future(
+                handler(msg)
+            )
 
     async def fetch(self, data, timeout=600, key=None):
         if not self.consumer:
@@ -124,6 +132,10 @@ class Listener:
         for action_name in actions.keys():
             self.actions_on_error[action_name] = on_error
             
+        return self
+
+    def add_msg_handler(self, handler):
+        self.msg_handlers.append(handler)
         return self
 
     def _process_msg_to_wait(self, msg):
