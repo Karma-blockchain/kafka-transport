@@ -90,7 +90,7 @@ class Listener:
             )
         )
         return self
-        
+
     async def stop(self):
         if self.consumer:
             await self.consumer.stop()
@@ -126,12 +126,13 @@ class Listener:
 
     def add_actions(self, actions: dict, on_error=produce_error()) -> 'Listener':
         assert type(actions) is dict, 'Actions must be dict'
-        assert not set(self.actions.keys()) & set(actions.keys()), "Actions already added"
+        assert not set(self.actions.keys()) & set(
+            actions.keys()), "Actions already added"
 
         self.actions = {**self.actions, **actions}
         for action_name in actions.keys():
             self.actions_on_error[action_name] = on_error
-            
+
         return self
 
     def add_msg_handler(self, handler):
@@ -165,9 +166,10 @@ class Listener:
                 return
 
             if type(result) is not Response:
-                result = { 'data': result }
+                result = {'data': result}
         except Exception as e:
-            logger.error("Error during processing message: %s (%s)", str(msg), str(e))
+            logger.error(
+                "Error during processing message: %s (%s)", str(msg), str(e))
             on_error = self.actions_on_error.get(value['action'])
             if on_error:
                 await on_error(msg, e, self.consumer_topic, self.producer_topic)

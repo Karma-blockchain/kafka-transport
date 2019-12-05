@@ -7,6 +7,7 @@ import msgpack
 import uuid
 import time
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from kafka import KafkaConsumer, KafkaProducer
 
 from .errors import KafkaTransportError
 
@@ -14,6 +15,7 @@ logger = logging.getLogger('kafka_transport')
 
 kafka_host = None
 producer = None
+sleep_timeout = 0.01
 consumers = []
 
 
@@ -37,27 +39,29 @@ def decode_key(key) -> Optional[str]:
     return key.decode('utf8')
 
 
-async def init(host):
+async def init(host, timeout=0.01):
     global kafka_host
     global producer
+    global sleep_timeout
 
     kafka_host = host
+    sleep_timeout = timeout
 
     if producer is not None:
         await finalize()
 
-    producer = AIOKafkaProducer(
-        loop=asyncio.get_event_loop(),
-        bootstrap_servers=kafka_host,
-    )
-    await producer.start()
+    producer = KafkaProducer(
+        bootstrap_servers=[host], value_serializer=msgpack.dumps)
+
+    # while not producer.bootstrap_connected():
+    #    await asyncio.sleep(0.01)
 
 
 async def finalize():
     if producer:
-        await producer.stop()
+        producer.close()
     for consumer in consumers:
-        await consumer.stop()
+        consumer.close()
 
 
 def close():
@@ -70,6 +74,8 @@ def close():
                 loop.run_until_complete(finalize())
         except Exception as e:
             logger.exception(str(e))
+
+
 atexit.register(close)
 
 
@@ -78,68 +84,72 @@ async def subscribe(topic, callback, consumer_options=None):
     await consume_messages(consumer, callback)
 
 
-async def init_consumer(topic, consumer_options=None) -> AIOKafkaConsumer:
-    consumer = AIOKafkaConsumer(
-        topic,
-        loop=asyncio.get_event_loop(),
-        bootstrap_servers=kafka_host,
-        **(consumer_options if type(consumer_options) is dict else {})
-    )
+async def init_consumer(topic, consumer_options=None):
+    consumer = KafkaConsumer(topic, bootstrap_servers=[
+                             kafka_host])
+
+    # while not consumer.bootstrap_connected():
+    #    await asyncio.sleep(0.01)
+
     consumers.append(consumer)
-    await consumer.start()
+
     return consumer
 
 
-async def consume_messages(consumer: AIOKafkaConsumer, callback):
-    async for msg in consumer:
-        try:
-            value = msgpack.unpackb(msg.value, raw=False)
-        except:
-            logger.warning("Not binary data: %s", str(msg.value))
-            continue
+async def consume_messages(consumer, callback):
 
-        try:
-            result = callback({
-                "key": decode_key(msg.key),
-                "value": value
-            })
-            if asyncio.iscoroutine(result):
-                asyncio.ensure_future(result)
-        except:
-            logger.warning("Error during calling handler with data: %s", str(value))
+    while True:
+        await asyncio.sleep(sleep_timeout)
+        partitions = consumer.poll()
+
+        for records in partitions.values():
+            for record in records:
+                try:
+                    value = msgpack.unpackb(record.value, raw=False)
+                except Exception as e:
+                    print(str(e))
+                    logger.warning("Not binary data: %s", str(record.value))
+                    continue
+
+                try:
+                    result = callback(
+                        {"key": decode_key(record.key), "value": value})
+
+                    if asyncio.iscoroutine(result):
+                        asyncio.ensure_future(result)
+                except:
+                    logger.warning(
+                        "Error during calling handler with data: %s", str(value))
 
 
 async def push(topic, value, key=None):
-    data = msgpack.packb(value, use_bin_type=True)
-    await producer.send_and_wait(topic, data, key=encode_key(key))
+    producer.send(topic, value, key=encode_key(key)).get()
 
 
 async def fetch(to, _from, value, timeout_ms=600 * 1000):
     id = str(uuid.uuid4())
 
-    consumer = AIOKafkaConsumer(
-        _from,
-        loop=asyncio.get_event_loop(),
-        bootstrap_servers=kafka_host
-    )
+    consumer = KafkaConsumer(_from, bootstrap_servers=[
+                             kafka_host])
 
-    await consumer.start()
+    # await consumer.start()
     await asyncio.sleep(0.5)
-    
+
     await push(to, value, id)
 
     try:
         end_time = time.time() + timeout_ms / 1000
 
         while time.time() <= end_time:
-            result = await consumer.getmany(timeout_ms=timeout_ms)
-            for messages in result.values():
-                for msg in messages:
+            await asyncio.sleep(sleep_timeout)
+            result = consumer.poll()
+            for records in result.values():
+                for msg in records:
                     key = decode_key(msg.key)
                     if key == id:
-                        await consumer.stop()
+                        consumer.close()
                         return msgpack.unpackb(msg.value, raw=False)
     finally:
-        await consumer.stop()
+        consumer.close()
 
     raise KafkaTransportError("Fetch timeout")
