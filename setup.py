@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(name='kafka-transport',
-      version='0.6.7',
+      version='0.7.1',
       long_description=long_description,
       long_description_content_type="text/markdown",
       url='https://github.com/Karma-blockchain/kafka-transport',
@@ -14,5 +14,5 @@ setup(name='kafka-transport',
       packages=find_packages(),
       install_requires=[
         "msgpack >= 0.5.6",
-        "aiokafka >= 0.4.2"
+        "kafka-python >= 1.4.7"
       ])

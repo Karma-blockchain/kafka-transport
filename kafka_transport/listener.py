@@ -109,7 +109,7 @@ class Listener:
                 handler(msg)
             )
 
-    async def fetch(self, data, timeout=600, key=None):
+    async def fetch(self, data, timeout=60, key=None):
         if not self.consumer:
             KafkaTransportError("Consumer was not started")
 
