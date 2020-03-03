@@ -119,8 +119,10 @@ class Listener:
 
         await push(self.producer_topic, data, key)
 
-        result = await asyncio.wait_for(self.msg_to_wait[key], timeout=timeout)
-        del self.msg_to_wait[key]
+        try:
+            result = await asyncio.wait_for(self.msg_to_wait[key], timeout=timeout)
+        finally:
+            del self.msg_to_wait[key]
 
         return result
 

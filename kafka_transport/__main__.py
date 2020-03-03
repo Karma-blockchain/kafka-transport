@@ -106,7 +106,6 @@ async def consume_messages(consumer, callback):
                 try:
                     value = msgpack.unpackb(record.value, raw=False, strict_map_key=False)
                 except Exception as e:
-                    print(str(e))
                     logger.warning("Not binary data: %s", str(record.value))
                     continue
 
