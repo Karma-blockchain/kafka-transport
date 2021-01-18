@@ -78,12 +78,12 @@ def close():
 atexit.register(close)
 
 
-async def subscribe(topic, callback, consumer_options=None):
+async def subscribe(topic, callback, consumer_options={}):
     consumer = await init_consumer(topic, consumer_options)
     await consume_messages(consumer, callback)
 
 
-async def init_consumer(topic, consumer_options=None):
+async def init_consumer(topic, consumer_options={}):
     consumer = KafkaConsumer(topic, bootstrap_servers=[
                              kafka_host], **consumer_options)
 

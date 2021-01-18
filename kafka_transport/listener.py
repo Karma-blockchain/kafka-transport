@@ -71,7 +71,7 @@ def resend_message_then_produce_error(reshipments_count=10):
 class Listener:
     def __init__(self,
                  consumer_topic: str, producer_topic: str,
-                 consumer_options=None):
+                 consumer_options={}):
         self.actions = {}
         self.actions_on_error = {}
         self.msg_handlers = []
