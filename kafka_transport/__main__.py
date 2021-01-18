@@ -38,7 +38,7 @@ def decode_key(key) -> Optional[str]:
     return key.decode('utf8')
 
 
-async def init(host, timeout=0.01):
+async def init(host, timeout=0.01, producer_options={}):
     global kafka_host
     global producer
     global sleep_timeout
@@ -50,7 +50,7 @@ async def init(host, timeout=0.01):
         await finalize()
 
     producer = KafkaProducer(
-        bootstrap_servers=[host], value_serializer=msgpack.dumps)
+        bootstrap_servers=[host], value_serializer=msgpack.dumps, **producer_options)
 
     # while not producer.bootstrap_connected():
     #    await asyncio.sleep(0.01)
@@ -85,7 +85,7 @@ async def subscribe(topic, callback, consumer_options=None):
 
 async def init_consumer(topic, consumer_options=None):
     consumer = KafkaConsumer(topic, bootstrap_servers=[
-                             kafka_host])
+                             kafka_host], **consumer_options)
 
     # while not consumer.bootstrap_connected():
     #    await asyncio.sleep(0.01)
@@ -104,7 +104,8 @@ async def consume_messages(consumer, callback):
         for records in partitions.values():
             for record in records:
                 try:
-                    value = msgpack.unpackb(record.value, raw=False, strict_map_key=False)
+                    value = msgpack.unpackb(
+                        record.value, raw=False, strict_map_key=False)
                 except Exception as e:
                     logger.warning("Not binary data: %s", str(record.value))
                     continue
@@ -124,11 +125,11 @@ async def push(topic, value, key=None):
     producer.send(topic, value, key=encode_key(key)).get()
 
 
-async def fetch(to, _from, value, timeout_ms=600 * 1000):
+async def fetch(to, _from, value, timeout_ms=600 * 1000, consumer_options={}):
     id = str(uuid.uuid4())
 
     consumer = KafkaConsumer(_from, bootstrap_servers=[
-                             kafka_host])
+                             kafka_host], **consumer_options)
 
     # await consumer.start()
     await asyncio.sleep(0.5)
